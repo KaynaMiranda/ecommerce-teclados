@@ -4,11 +4,13 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { user } = useAuthStore();
+  const { user, loading } = useAuthStore();
   const location = useLocation();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   useEffect(() => {
+    if (loading) return;
+
     if (!user) {
       setIsAdmin(false);
       return;
@@ -19,12 +21,17 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
       .select('is_admin')
       .eq('user_id', user.id)
       .single()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Admin check error:', error);
+          setIsAdmin(false);
+          return;
+        }
         setIsAdmin(data?.is_admin ?? false);
       });
-  }, [user]);
+  }, [user, loading]);
 
-  if (isAdmin === null) {
+  if (loading || isAdmin === null) {
     return (
       <div className="min-h-[80vh] flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
@@ -32,7 +39,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!isAdmin) {
+  if (!user || !isAdmin) {
     return <Navigate to="/" replace />;
   }
 
