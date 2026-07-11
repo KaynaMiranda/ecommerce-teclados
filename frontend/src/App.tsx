@@ -7,6 +7,10 @@ import { Cart } from './pages/Cart';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { ForgotPassword } from './pages/ForgotPassword';
+import { AdminLayout } from './components/admin/AdminLayout';
+import { AdminDashboard } from './pages/admin/Dashboard';
+import { AdminProducts } from './pages/admin/Products';
+import { AdminOrders } from './pages/admin/Orders';
 import { useAuthStore } from './store/authStore';
 
 function App() {
@@ -28,6 +32,30 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/cadastro" element={<Register />} />
             <Route path="/esqueci-senha" element={<ForgotPassword />} />
+            <Route
+              path="/admin"
+              element={
+                <AdminLayout>
+                  <AdminDashboard />
+                </AdminLayout>
+              }
+            />
+            <Route
+              path="/admin/produtos"
+              element={
+                <AdminLayout>
+                  <AdminProducts />
+                </AdminLayout>
+              }
+            />
+            <Route
+              path="/admin/pedidos"
+              element={
+                <AdminLayout>
+                  <AdminOrders />
+                </AdminLayout>
+              }
+            />
           </Routes>
         </main>
       </div>

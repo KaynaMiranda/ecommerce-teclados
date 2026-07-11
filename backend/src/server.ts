@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { productsRoutes } from './routes/products.js';
 import { categoriesRoutes } from './routes/categories.js';
+import { adminRoutes } from './routes/admin.js';
 
 const app = Fastify({
   logger: true,
@@ -14,6 +15,7 @@ app.register(cors, {
 
 app.register(productsRoutes, { prefix: '/api/products' });
 app.register(categoriesRoutes, { prefix: '/api/categories' });
+app.register(adminRoutes, { prefix: '/api/admin' });
 
 app.get('/api/health', async () => {
   return { status: 'ok' };
