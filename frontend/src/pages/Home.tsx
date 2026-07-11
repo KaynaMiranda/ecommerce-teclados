@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { productsService } from '../services/api';
-import { Product } from '../types';
+import type { Product } from '../types';
 
 export function Home() {
   const [products, setProducts] = useState<Product[]>([]);

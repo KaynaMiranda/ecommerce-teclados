@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { productsService } from '../services/api';
-import { Product, ProductVariation } from '../types';
+import type { Product, ProductVariation } from '../types';
 import { useCartStore } from '../store/cartStore';
 
 export function ProductDetail() {
