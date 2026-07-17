@@ -23,6 +23,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     { path: '/admin/produtos', label: 'Produtos' },
     { path: '/admin/clientes', label: 'Clientes B2B' },
     { path: '/admin/frete', label: 'Frete' },
+    { path: '/admin/entregadores', label: 'Entregadores' },
     { path: '/admin/equipe', label: 'Equipe' },
     { path: '/admin/estoque', label: 'Estoque' },
     { path: '/admin/config', label: 'Configurações' },

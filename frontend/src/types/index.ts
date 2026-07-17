@@ -1,9 +1,10 @@
 export type UserRole = 'admin' | 'attendant' | 'manager' | 'b2c_client' | 'b2b_client';
-export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'out_for_delivery' | 'delivered' | 'cancelled';
+export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready_for_pickup' | 'out_for_delivery' | 'delivered' | 'cancelled';
 export type PaymentMethod = 'pix' | 'credit_card' | 'boleto';
 export type OrderType = 'b2c' | 'b2b';
 export type ClientType = 'drogaria' | 'clinica' | 'distribuidora';
 export type StockMovementType = 'in' | 'out' | 'adjustment';
+export type DriverType = 'own' | 'ifood' | 'rappi' | 'other';
 
 export interface Profile {
   id: string;
@@ -148,6 +149,12 @@ export interface Order {
   delivery_zone_id?: string;
   shipping_address_id?: string;
   shipping_address_snapshot?: Record<string, unknown>;
+  delivery_schedule_id?: string;
+  prescription_url?: string;
+  delivery_notes?: string;
+  assigned_driver_id?: string;
+  ready_at?: string;
+  delivered_at?: string;
   notes?: string;
   created_at: string;
   updated_at: string;
@@ -155,6 +162,9 @@ export interface Order {
   profile?: Profile;
   b2b_client?: B2BClient;
   delivery_zone?: DeliveryZone;
+  delivery_schedule?: { name: string; start_time: string; end_time: string };
+  driver?: Driver;
+  assignment?: DeliveryAssignment;
 }
 
 export interface OrderItem {
@@ -179,4 +189,36 @@ export interface OtpLog {
   verified: boolean;
   sent_at: string;
   verified_at?: string;
+}
+
+export interface Driver {
+  id: string;
+  name: string;
+  phone: string;
+  driver_type: DriverType;
+  vehicle_type?: string;
+  plate?: string;
+  active: boolean;
+  created_at: string;
+}
+
+export interface DeliveryAssignment {
+  id: string;
+  order_id: string;
+  driver_id: string;
+  status: 'assigned' | 'picked_up' | 'delivered';
+  assigned_at: string;
+  picked_up_at?: string;
+  delivered_at?: string;
+  notes?: string;
+  driver?: Driver;
+  order?: Order;
+}
+
+export interface ZipCoordinate {
+  zip_code: string;
+  latitude: number;
+  longitude: number;
+  city?: string;
+  state?: string;
 }

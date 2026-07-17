@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { adminService } from '../../services/admin';
-import type { Order, OrderStatus } from '../../types';
+import type { Order, OrderStatus, Driver } from '../../types';
 
 const statusLabels: Record<OrderStatus, string> = {
   pending: 'Pendente',
   confirmed: 'Confirmado',
   preparing: 'Preparando',
+  ready_for_pickup: 'Pronto p/ Retirada',
   out_for_delivery: 'Saiu p/ Entrega',
   delivered: 'Entregue',
   cancelled: 'Cancelado',
@@ -16,15 +17,19 @@ const statusColors: Record<OrderStatus, string> = {
   pending: 'bg-yellow-100 text-yellow-800',
   confirmed: 'bg-blue-100 text-blue-800',
   preparing: 'bg-purple-100 text-purple-800',
+  ready_for_pickup: 'bg-cyan-100 text-cyan-800',
   out_for_delivery: 'bg-orange-100 text-orange-800',
   delivered: 'bg-green-100 text-green-800',
   cancelled: 'bg-red-100 text-red-800',
 };
 
+const statusSteps = ['pending', 'confirmed', 'preparing', 'ready_for_pickup', 'out_for_delivery', 'delivered'];
+
 const allowedTransitions: Record<string, string[]> = {
   pending: ['confirmed', 'cancelled'],
   confirmed: ['preparing', 'cancelled'],
-  preparing: ['out_for_delivery', 'cancelled'],
+  preparing: ['ready_for_pickup', 'cancelled'],
+  ready_for_pickup: ['out_for_delivery', 'cancelled'],
   out_for_delivery: ['delivered'],
   delivered: [],
   cancelled: [],
@@ -37,10 +42,24 @@ export function AdminOrders() {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterType, setFilterType] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [selectedDriverId, setSelectedDriverId] = useState('');
 
   useEffect(() => {
     loadOrders();
   }, [filterStatus, filterType]);
+
+  useEffect(() => {
+    if (user) loadDrivers();
+  }, [user]);
+
+  async function loadDrivers() {
+    if (!user) return;
+    try {
+      const data = await adminService.getDrivers(user.id);
+      setDrivers(data.filter(d => d.active));
+    } catch {}
+  }
 
   async function loadOrders() {
     if (!user) return;
@@ -67,6 +86,23 @@ export function AdminOrders() {
     } catch (err: any) {
       alert(err?.response?.data?.error || 'Erro ao atualizar status');
     }
+  }
+
+  async function handleAssignDriver(orderId: string) {
+    if (!user || !selectedDriverId) return;
+    try {
+      await adminService.assignDriver(user.id, orderId, selectedDriverId);
+      loadOrders();
+    } catch {
+      alert('Erro ao designar entregador');
+    }
+  }
+
+  async function handleRemoveAssignment(orderId: string) {
+    if (!user) return;
+    if (!confirm('Remover designação de entregador?')) return;
+    await adminService.removeAssignment(user.id, orderId);
+    loadOrders();
   }
 
   function formatDate(dateStr: string) {
@@ -113,6 +149,7 @@ export function AdminOrders() {
                   <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Tipo</th>
                   <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Total</th>
                   <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Status</th>
+                  <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Entregador</th>
                   <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Data</th>
                 </tr>
               </thead>
@@ -141,6 +178,9 @@ export function AdminOrders() {
                         {statusLabels[order.status]}
                       </span>
                     </td>
+                    <td className="px-4 py-3 text-sm text-gray-500">
+                      {order.driver?.name || '—'}
+                    </td>
                     <td className="px-4 py-3 text-sm text-gray-500">{formatDate(order.created_at)}</td>
                   </tr>
                 ))}
@@ -162,13 +202,14 @@ export function AdminOrders() {
               <div>
                 <span className="text-gray-500 text-xs">Status atual</span>
                 <div className="flex gap-1 mt-2">
-                  {['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered'].map((step, i) => {
-                    const currentIdx = ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered'].indexOf(selectedOrder.status);
+                  {statusSteps.map((step, i) => {
+                    const currentIdx = statusSteps.indexOf(selectedOrder.status);
                     return (
                       <div key={step} className={`h-2 flex-1 rounded ${i <= currentIdx ? 'bg-green-500' : 'bg-gray-200'}`} />
                     );
                   })}
                 </div>
+                <p className="text-xs text-gray-500 mt-1">{statusLabels[selectedOrder.status]}</p>
               </div>
 
               {/* Next status buttons */}
@@ -208,10 +249,10 @@ export function AdminOrders() {
               </div>
 
               {/* Delivery schedule */}
-              {(selectedOrder as any).delivery_schedule && (
+              {selectedOrder.delivery_schedule && (
                 <div>
                   <span className="text-gray-500">Horário de entrega:</span>
-                  <p className="font-medium">{(selectedOrder as any).delivery_schedule.name} ({(selectedOrder as any).delivery_schedule.start_time?.slice(0,5)} - {(selectedOrder as any).delivery_schedule.end_time?.slice(0,5)})</p>
+                  <p className="font-medium">{selectedOrder.delivery_schedule.name} ({selectedOrder.delivery_schedule.start_time?.slice(0,5)} - {selectedOrder.delivery_schedule.end_time?.slice(0,5)})</p>
                 </div>
               )}
 
@@ -223,6 +264,35 @@ export function AdminOrders() {
                     {selectedOrder.shipping_address_snapshot.complement ? ` - ${selectedOrder.shipping_address_snapshot.complement}` : ''}
                   </p>
                   <p>{String(selectedOrder.shipping_address_snapshot.neighborhood)}, {String(selectedOrder.shipping_address_snapshot.city)} - {String(selectedOrder.shipping_address_snapshot.state)}</p>
+                </div>
+              )}
+
+              {/* Driver assignment */}
+              {['preparing', 'ready_for_pickup', 'out_for_delivery'].includes(selectedOrder.status) && (
+                <div className="border-t pt-3">
+                  <span className="text-gray-500">Entregador:</span>
+                  {selectedOrder.driver ? (
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="font-medium">{selectedOrder.driver.name} ({selectedOrder.driver.driver_type === 'own' ? 'Próprio' : selectedOrder.driver.driver_type})</p>
+                      <button onClick={() => handleRemoveAssignment(selectedOrder.id)}
+                        className="text-red-500 hover:underline text-xs">Remover</button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2 mt-1">
+                      <select value={selectedDriverId} onChange={e => setSelectedDriverId(e.target.value)}
+                        className="flex-1 border rounded px-2 py-1 text-sm">
+                        <option value="">Selecionar...</option>
+                        {drivers.map(d => (
+                          <option key={d.id} value={d.id}>{d.name} ({d.driver_type === 'own' ? 'Próprio' : d.driver_type})</option>
+                        ))}
+                      </select>
+                      <button onClick={() => handleAssignDriver(selectedOrder.id)}
+                        disabled={!selectedDriverId}
+                        className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 disabled:opacity-50">
+                        Designar
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 

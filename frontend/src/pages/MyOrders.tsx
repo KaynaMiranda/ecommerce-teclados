@@ -8,6 +8,7 @@ const statusLabels: Record<string, string> = {
   pending: 'Pendente',
   confirmed: 'Confirmado',
   preparing: 'Preparando',
+  ready_for_pickup: 'Pronto p/ Retirada',
   out_for_delivery: 'Saiu para entrega',
   delivered: 'Entregue',
   cancelled: 'Cancelado',
@@ -17,12 +18,13 @@ const statusColors: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-800',
   confirmed: 'bg-blue-100 text-blue-800',
   preparing: 'bg-purple-100 text-purple-800',
+  ready_for_pickup: 'bg-cyan-100 text-cyan-800',
   out_for_delivery: 'bg-orange-100 text-orange-800',
   delivered: 'bg-green-100 text-green-800',
   cancelled: 'bg-red-100 text-red-800',
 };
 
-const statusSteps = ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered'];
+const statusSteps = ['pending', 'confirmed', 'preparing', 'ready_for_pickup', 'out_for_delivery', 'delivered'];
 
 export function MyOrders() {
   const { user } = useAuthStore();
@@ -60,10 +62,6 @@ export function MyOrders() {
     });
   }
 
-  function getCurrentStep(status: string) {
-    return statusSteps.indexOf(status);
-  }
-
   if (loading) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-8">
@@ -97,7 +95,6 @@ export function MyOrders() {
           {orders.map(order => {
             const isExpanded = expandedId === order.id;
             const canCancel = ['pending', 'confirmed'].includes(order.status);
-            const currentStep = getCurrentStep(order.status);
 
             return (
               <div key={order.id} className="bg-white border rounded-lg">
@@ -110,6 +107,9 @@ export function MyOrders() {
                     <div>
                       <span className="font-mono text-sm text-gray-500">Pedido #{order.order_number}</span>
                       <p className="text-sm text-gray-500">{formatDate(order.created_at)}</p>
+                      {order.driver && (
+                        <p className="text-xs text-blue-600 mt-1">{order.driver.name} — {order.driver.driver_type === 'own' ? 'Entregador Próprio' : order.driver.driver_type}</p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColors[order.status]}`}>
@@ -125,9 +125,12 @@ export function MyOrders() {
                   {/* Progress bar */}
                   {order.status !== 'cancelled' && (
                     <div className="flex gap-1 mt-3">
-                      {statusSteps.map((step, i) => (
-                        <div key={step} className={`h-1.5 flex-1 rounded ${i <= currentStep ? 'bg-green-500' : 'bg-gray-200'}`} />
-                      ))}
+                      {statusSteps.map((step, i) => {
+                        const currentIdx = statusSteps.indexOf(order.status);
+                        return (
+                          <div key={step} className={`h-1.5 flex-1 rounded ${i <= currentIdx ? 'bg-green-500' : 'bg-gray-200'}`} />
+                        );
+                      })}
                     </div>
                   )}
                 </button>

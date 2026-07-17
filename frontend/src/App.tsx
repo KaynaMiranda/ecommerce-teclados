@@ -20,6 +20,7 @@ import { AdminClients } from './pages/admin/Clients';
 import { AdminFreight } from './pages/admin/Freight';
 import { AdminTeam } from './pages/admin/Team';
 import { AdminStock } from './pages/admin/Stock';
+import { AdminDrivers } from './pages/admin/Drivers';
 import { useAuthStore } from './store/authStore';
 
 function App() {
@@ -91,6 +92,14 @@ function App() {
               element={
                 <AdminLayout>
                   <AdminTeam />
+                </AdminLayout>
+              }
+            />
+            <Route
+              path="/admin/entregadores"
+              element={
+                <AdminLayout>
+                  <AdminDrivers />
                 </AdminLayout>
               }
             />

@@ -162,7 +162,8 @@ export async function adminRoutes(app: FastifyInstance) {
     const allowedTransitions: Record<string, string[]> = {
       pending: ['confirmed', 'cancelled'],
       confirmed: ['preparing', 'cancelled'],
-      preparing: ['out_for_delivery', 'cancelled'],
+      preparing: ['ready_for_pickup', 'cancelled'],
+      ready_for_pickup: ['out_for_delivery', 'cancelled'],
       out_for_delivery: ['delivered'],
       delivered: [],
       cancelled: [],
@@ -184,7 +185,10 @@ export async function adminRoutes(app: FastifyInstance) {
     }
 
     const updateData: Record<string, unknown> = { status };
-    if (status === 'delivered') {
+    if (status === 'ready_for_pickup') {
+      updateData.ready_at = new Date().toISOString();
+    } else if (status === 'delivered') {
+      updateData.delivered_at = new Date().toISOString();
       updateData.payment_confirmed_at = new Date().toISOString();
     }
 
@@ -428,6 +432,122 @@ export async function adminRoutes(app: FastifyInstance) {
 
     const { error } = await supabase.auth.admin.deleteUser(staffUserId);
     if (error) return reply.status(500).send({ error: error.message });
+    return { success: true };
+  });
+
+  // =============================================
+  // DRIVERS
+  // =============================================
+
+  app.get('/drivers', async (request, reply) => {
+    const { user_id } = request.query as { user_id: string };
+    if (!(await checkAdmin(user_id))) return reply.status(403).send({ error: 'Access denied' });
+
+    const { data, error } = await supabase
+      .from('drivers')
+      .select('*')
+      .order('name', { ascending: true });
+
+    if (error) return reply.status(500).send({ error: error.message });
+    return data;
+  });
+
+  app.post('/drivers', async (request, reply) => {
+    const { user_id, ...driverData } = request.body as any;
+    if (!(await checkAdmin(user_id))) return reply.status(403).send({ error: 'Access denied' });
+
+    const { data, error } = await supabase
+      .from('drivers')
+      .insert(driverData)
+      .select()
+      .single();
+
+    if (error) return reply.status(500).send({ error: error.message });
+    return data;
+  });
+
+  app.put('/drivers/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { user_id, ...driverData } = request.body as any;
+    if (!(await checkAdmin(user_id))) return reply.status(403).send({ error: 'Access denied' });
+
+    const { data, error } = await supabase
+      .from('drivers')
+      .update(driverData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) return reply.status(500).send({ error: error.message });
+    return data;
+  });
+
+  app.delete('/drivers/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { user_id } = request.query as { user_id: string };
+    if (!(await checkAdmin(user_id))) return reply.status(403).send({ error: 'Access denied' });
+
+    const { error } = await supabase.from('drivers').delete().eq('id', id);
+    if (error) return reply.status(500).send({ error: error.message });
+    return { success: true };
+  });
+
+  // =============================================
+  // DELIVERY ASSIGNMENTS
+  // =============================================
+
+  app.post('/orders/:id/assign', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { user_id, driver_id } = request.body as { user_id: string; driver_id: string };
+    if (!(await checkAdmin(user_id))) return reply.status(403).send({ error: 'Access denied' });
+
+    // Remove existing assignment if any
+    await supabase.from('delivery_assignments').delete().eq('order_id', id);
+
+    const { data, error } = await supabase
+      .from('delivery_assignments')
+      .insert({
+        order_id: id,
+        driver_id,
+        status: 'assigned',
+      })
+      .select()
+      .single();
+
+    if (error) return reply.status(500).send({ error: error.message });
+
+    // Update order with assigned driver
+    await supabase
+      .from('orders')
+      .update({ assigned_driver_id: driver_id })
+      .eq('id', id);
+
+    return data;
+  });
+
+  app.get('/orders/:id/assignment', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { user_id } = request.query as { user_id: string };
+    if (!(await checkAdmin(user_id))) return reply.status(403).send({ error: 'Access denied' });
+
+    const { data, error } = await supabase
+      .from('delivery_assignments')
+      .select('*, driver:drivers(*)')
+      .eq('order_id', id)
+      .single();
+
+    if (error || !data) return reply.status(404).send({ error: 'Assignment not found' });
+    return data;
+  });
+
+  app.delete('/orders/:id/assignment', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { user_id } = request.query as { user_id: string };
+    if (!(await checkAdmin(user_id))) return reply.status(403).send({ error: 'Access denied' });
+
+    await supabase.from('delivery_assignments').delete().eq('order_id', id);
+    await supabase.from('orders').update({ assigned_driver_id: null }).eq('id', id);
+
     return { success: true };
   });
 }

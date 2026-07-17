@@ -53,6 +53,30 @@ export function Checkout() {
     loadMinValue();
   }, []);
 
+  useEffect(() => {
+    const zipClean = address.zip_code.replace(/\D/g, '');
+    if (zipClean.length === 8) {
+      fetchCEP(zipClean);
+    }
+  }, [address.zip_code]);
+
+  async function fetchCEP(zipClean: string) {
+    try {
+      const { data } = await api.get(`/api/products/cep/${zipClean}`);
+      if (data) {
+        setAddress(prev => ({
+          ...prev,
+          street: data.street || prev.street,
+          neighborhood: data.neighborhood || prev.neighborhood,
+          city: data.city || prev.city,
+          state: data.state || prev.state,
+        }));
+      }
+    } catch {
+      // ignore — user can fill manually
+    }
+  }
+
   async function loadSchedules() {
     try {
       const { data } = await api.get('/api/orders/schedules/available');

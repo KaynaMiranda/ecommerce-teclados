@@ -1,5 +1,5 @@
 import api from './api';
-import type { Product, Category, Order, B2BClient, DeliveryZone, Profile } from '../types';
+import type { Product, Category, Order, B2BClient, DeliveryZone, Profile, Driver, DeliveryAssignment } from '../types';
 
 export interface StockMovement {
   id: string;
@@ -182,5 +182,51 @@ export const adminService = {
       reason,
     });
     return data;
+  },
+
+  // Drivers
+  async getDrivers(userId: string): Promise<Driver[]> {
+    const { data } = await api.get('/api/admin/drivers', { params: { user_id: userId } });
+    return data;
+  },
+
+  async createDriver(userId: string, driver: Partial<Driver>) {
+    const { data } = await api.post('/api/admin/drivers', { user_id: userId, ...driver });
+    return data;
+  },
+
+  async updateDriver(userId: string, id: string, driver: Partial<Driver>) {
+    const { data } = await api.put(`/api/admin/drivers/${id}`, { user_id: userId, ...driver });
+    return data;
+  },
+
+  async deleteDriver(userId: string, id: string) {
+    await api.delete(`/api/admin/drivers/${id}`, { params: { user_id: userId } });
+  },
+
+  // Delivery Assignments
+  async assignDriver(userId: string, orderId: string, driverId: string): Promise<DeliveryAssignment> {
+    const { data } = await api.post(`/api/admin/orders/${orderId}/assign`, {
+      user_id: userId,
+      driver_id: driverId,
+    });
+    return data;
+  },
+
+  async getAssignment(userId: string, orderId: string): Promise<DeliveryAssignment | null> {
+    try {
+      const { data } = await api.get(`/api/admin/orders/${orderId}/assignment`, {
+        params: { user_id: userId },
+      });
+      return data;
+    } catch {
+      return null;
+    }
+  },
+
+  async removeAssignment(userId: string, orderId: string) {
+    await api.delete(`/api/admin/orders/${orderId}/assignment`, {
+      params: { user_id: userId },
+    });
   },
 };

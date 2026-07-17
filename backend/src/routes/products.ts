@@ -55,7 +55,61 @@ export async function productsRoutes(app: FastifyInstance) {
   });
 
   // =============================================
-  // SHIPPING CALCULATION (Haversine)
+  // VIA CEP - Buscar endereço por CEP
+  // =============================================
+
+  app.get('/cep/:zip_code', async (request, reply) => {
+    const { zip_code } = request.params as { zip_code: string };
+    const cleanZip = zip_code.replace(/\D/g, '');
+
+    if (cleanZip.length !== 8) {
+      return reply.status(400).send({ error: 'CEP inválido' });
+    }
+
+    // Check our local table first
+    const { data: local } = await supabase
+      .from('zip_coordinates')
+      .select('*')
+      .eq('zip_code', cleanZip)
+      .single();
+
+    if (local) {
+      return {
+        zip_code: cleanZip,
+        street: '',
+        neighborhood: '',
+        city: local.city,
+        state: local.state,
+        latitude: local.latitude,
+        longitude: local.longitude,
+      };
+    }
+
+    // Fallback to ViaCEP API
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanZip}/json/`);
+      const data = await response.json() as Record<string, string>;
+
+      if (data.erro) {
+        return reply.status(404).send({ error: 'CEP não encontrado' });
+      }
+
+      return {
+        zip_code: cleanZip,
+        street: data.logradouro || '',
+        neighborhood: data.bairro || '',
+        city: data.localidade || '',
+        state: data.uf || '',
+        latitude: null,
+        longitude: null,
+      };
+    } catch {
+      return reply.status(500).send({ error: 'Erro ao consultar CEP' });
+    }
+  });
+
+  // =============================================
+  // SHIPPING CALCULATION (Haversine + Geocoding)
   // =============================================
 
   app.post('/calculate-shipping', async (request, reply) => {
@@ -68,10 +122,46 @@ export async function productsRoutes(app: FastifyInstance) {
     let lat = latitude;
     let lng = longitude;
 
-    // If only zip_code provided, we'd need geocoding (Google Maps API)
-    // For now, require lat/lng directly
+    // If only zip_code provided, try to geocode
+    if ((!lat || !lng) && zip_code) {
+      const cleanZip = zip_code.replace(/\D/g, '');
+
+      // Check local table
+      const { data: local } = await supabase
+        .from('zip_coordinates')
+        .select('latitude, longitude')
+        .eq('zip_code', cleanZip)
+        .single();
+
+      if (local) {
+        lat = Number(local.latitude);
+        lng = Number(local.longitude);
+      } else {
+        // Use ViaCEP to get city name, then use approximate coordinates
+        try {
+          const response = await fetch(`https://viacep.com.br/ws/${cleanZip}/json/`);
+          const data = await response.json() as Record<string, string>;
+
+          if (!data.erro && data.localidade) {
+            // For São Paulo city, use center coordinates
+            if (data.localidade === 'São Paulo' && data.uf === 'SP') {
+              lat = -23.5505;
+              lng = -46.6333;
+            } else {
+              // For other cities, return error asking for lat/lng
+              return reply.status(400).send({
+                error: 'Não foi possível calcular a distância para este CEP. Tente informar a localização manualmente.',
+              });
+            }
+          }
+        } catch {
+          // Ignore ViaCEP errors
+        }
+      }
+    }
+
     if (!lat || !lng) {
-      return reply.status(400).send({ error: 'Latitude and longitude are required' });
+      return reply.status(400).send({ error: 'Informe o CEP ou as coordenadas (latitude/longitude)' });
     }
 
     // Get all active zones
@@ -83,8 +173,8 @@ export async function productsRoutes(app: FastifyInstance) {
 
     if (error) return reply.status(500).send({ error: error.message });
 
-    // Calculate distance using Haversine formula
-    const R = 6371; // Earth's radius in km
+    // Haversine formula
+    const R = 6371;
 
     function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
       const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -97,10 +187,11 @@ export async function productsRoutes(app: FastifyInstance) {
       return R * c;
     }
 
-    // Find the smallest zone that covers the distance
     let matchedZone = null;
+    let distance = 0;
+
     for (const zone of zones || []) {
-      const distance = haversine(lat, lng, zone.center_lat, zone.center_lng);
+      distance = haversine(lat, lng, zone.center_lat, zone.center_lng);
       if (distance <= zone.radius_km) {
         matchedZone = zone;
         break;
@@ -108,15 +199,20 @@ export async function productsRoutes(app: FastifyInstance) {
     }
 
     if (!matchedZone) {
-      return { available: false, error: 'Fora da área de entrega' };
+      return {
+        available: false,
+        error: 'Fora da área de entrega',
+        distance_km: Math.round(distance * 10) / 10,
+      };
     }
 
     return {
       available: true,
       zone_id: matchedZone.id,
       zone_name: matchedZone.name,
-      shipping_fee: matchedZone.shipping_fee,
+      shipping_fee: Number(matchedZone.shipping_fee),
       estimated_delivery_minutes: matchedZone.estimated_delivery_minutes,
+      distance_km: Math.round(distance * 10) / 10,
     };
   });
 }
