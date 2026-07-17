@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { adminService } from '../../services/admin';
 import type { Product, Category } from '../../types';
@@ -9,250 +9,221 @@ export function AdminProducts() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-
-  const [name, setName] = useState('');
-  const [slug, setSlug] = useState('');
-  const [description, setDescription] = useState('');
-  const [price, setPrice] = useState('');
-  const [categoryId, setCategoryId] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  const loadProducts = () => {
-    if (!user) return;
-    adminService
-      .getProducts(user.id)
-      .then(setProducts)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  };
+  const [editing, setEditing] = useState<Product | null>(null);
+  const [form, setForm] = useState({
+    name: '', slug: '', description: '', price: '', category_id: '',
+    image_url: '', laboratory: '', anvisa_code: '', controlled: false, requires_prescription: false,
+  });
 
   useEffect(() => {
+    loadData();
+  }, []);
+
+  async function loadData() {
     if (!user) return;
-    loadProducts();
-    adminService.getCategories().then(setCategories).catch(console.error);
-  }, [user]);
+    try {
+      const [prods, cats] = await Promise.all([
+        adminService.getProducts(user.id),
+        adminService.getCategories(),
+      ]);
+      setProducts(prods);
+      setCategories(cats);
+    } finally {
+      setLoading(false);
+    }
+  }
 
-  const resetForm = () => {
-    setName('');
-    setSlug('');
-    setDescription('');
-    setPrice('');
-    setCategoryId('');
-    setImageUrl('');
-    setEditingProduct(null);
-    setShowForm(false);
-  };
-
-  const handleEdit = (product: Product) => {
-    setEditingProduct(product);
-    setName(product.name);
-    setSlug(product.slug);
-    setDescription(product.description);
-    setPrice(String(product.price));
-    setCategoryId(product.category_id);
-    setImageUrl(product.image_url || '');
-    setShowForm(true);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!user) return;
-    if (!confirm('Tem certeza que deseja excluir este produto?')) return;
-
-    await adminService.deleteProduct(user.id, id);
-    loadProducts();
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!user) return;
-    setSaving(true);
 
-    const productData = {
-      name,
-      slug,
-      description,
-      price: Number(price),
-      category_id: categoryId,
-      image_url: imageUrl,
+    const payload = {
+      ...form,
+      price: Number(form.price),
+      slug: form.slug || form.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
     };
 
     try {
-      if (editingProduct) {
-        await adminService.updateProduct(user.id, editingProduct.id, productData);
+      if (editing) {
+        await adminService.updateProduct(user.id, editing.id, payload);
       } else {
-        await adminService.createProduct(user.id, productData);
+        await adminService.createProduct(user.id, payload);
       }
+      setShowForm(false);
+      setEditing(null);
       resetForm();
-      loadProducts();
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setSaving(false);
+      loadData();
+    } catch {
+      alert('Erro ao salvar produto');
     }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-      </div>
-    );
   }
+
+  async function handleDelete(id: string) {
+    if (!user || !confirm('Excluir este produto?')) return;
+    await adminService.deleteProduct(user.id, id);
+    loadData();
+  }
+
+  function resetForm() {
+    setForm({
+      name: '', slug: '', description: '', price: '', category_id: '',
+      image_url: '', laboratory: '', anvisa_code: '', controlled: false, requires_prescription: false,
+    });
+  }
+
+  function startEdit(product: Product) {
+    setForm({
+      name: product.name,
+      slug: product.slug,
+      description: product.description || '',
+      price: String(product.price),
+      category_id: product.category_id,
+      image_url: product.image_url || '',
+      laboratory: product.laboratory || '',
+      anvisa_code: product.anvisa_code || '',
+      controlled: product.controlled,
+      requires_prescription: product.requires_prescription,
+    });
+    setEditing(product);
+    setShowForm(true);
+  }
+
+  if (loading) return <div className="animate-pulse text-gray-400">Carregando...</div>;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Produtos</h1>
-        <button
-          onClick={() => {
-            resetForm();
-            setShowForm(!showForm);
-          }}
-          className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-800"
-        >
-          {showForm ? 'Cancelar' : '+ Novo Produto'}
+        <button onClick={() => { setShowForm(true); setEditing(null); resetForm(); }}
+          className="bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800">
+          + Novo Produto
         </button>
       </div>
 
       {showForm && (
         <div className="bg-white border rounded-lg p-6 mb-6">
-          <h2 className="text-lg font-semibold mb-4">
-            {editingProduct ? 'Editar Produto' : 'Novo Produto'}
-          </h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Nome</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  className="w-full border rounded-lg px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Slug</label>
-                <input
-                  type="text"
-                  value={slug}
-                  onChange={(e) => setSlug(e.target.value)}
-                  required
-                  className="w-full border rounded-lg px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Preço (R$)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  required
-                  className="w-full border rounded-lg px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Categoria</label>
-                <select
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  required
-                  className="w-full border rounded-lg px-3 py-2 text-sm"
-                >
-                  <option value="">Selecione</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          <h2 className="text-lg font-semibold mb-4">{editing ? 'Editar Produto' : 'Novo Produto'}</h2>
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Nome *</label>
+              <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})}
+                className="w-full border rounded-lg px-3 py-2" required />
             </div>
             <div>
+              <label className="block text-sm font-medium mb-1">Slug</label>
+              <input type="text" value={form.slug} onChange={e => setForm({...form, slug: e.target.value})}
+                className="w-full border rounded-lg px-3 py-2" placeholder="gerado automaticamente" />
+            </div>
+            <div className="col-span-2">
               <label className="block text-sm font-medium mb-1">Descrição</label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                required
-                rows={3}
-                className="w-full border rounded-lg px-3 py-2 text-sm"
-              />
+              <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})}
+                className="w-full border rounded-lg px-3 py-2" rows={3} />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">URL da Imagem</label>
-              <input
-                type="url"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm"
-                placeholder="https://..."
-              />
+              <label className="block text-sm font-medium mb-1">Preço (R$) *</label>
+              <input type="number" step="0.01" value={form.price} onChange={e => setForm({...form, price: e.target.value})}
+                className="w-full border rounded-lg px-3 py-2" required />
             </div>
-            <button
-              type="submit"
-              disabled={saving}
-              className="bg-gray-900 text-white px-6 py-2 rounded-lg text-sm hover:bg-gray-800 disabled:opacity-50"
-            >
-              {saving ? 'Salvando...' : editingProduct ? 'Salvar' : 'Criar Produto'}
-            </button>
+            <div>
+              <label className="block text-sm font-medium mb-1">Categoria *</label>
+              <select value={form.category_id} onChange={e => setForm({...form, category_id: e.target.value})}
+                className="w-full border rounded-lg px-3 py-2" required>
+                <option value="">Selecione...</option>
+                {categories.map(cat => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Laboratório</label>
+              <input type="text" value={form.laboratory} onChange={e => setForm({...form, laboratory: e.target.value})}
+                className="w-full border rounded-lg px-3 py-2" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Código ANVISA</label>
+              <input type="text" value={form.anvisa_code} onChange={e => setForm({...form, anvisa_code: e.target.value})}
+                className="w-full border rounded-lg px-3 py-2" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-sm font-medium mb-1">URL da Imagem</label>
+              <input type="text" value={form.image_url} onChange={e => setForm({...form, image_url: e.target.value})}
+                className="w-full border rounded-lg px-3 py-2" />
+            </div>
+            <div className="flex gap-6">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={form.controlled} onChange={e => setForm({...form, controlled: e.target.checked})}
+                  className="rounded" />
+                <span className="text-sm">Controlado</span>
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={form.requires_prescription} onChange={e => setForm({...form, requires_prescription: e.target.checked})}
+                  className="rounded" />
+                <span className="text-sm">Requer Receita</span>
+              </label>
+            </div>
+            <div className="col-span-2 flex gap-3 pt-4">
+              <button type="submit" className="bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800">
+                {editing ? 'Salvar' : 'Criar'}
+              </button>
+              <button type="button" onClick={() => { setShowForm(false); setEditing(null); }}
+                className="border px-4 py-2 rounded-lg hover:bg-gray-50">
+                Cancelar
+              </button>
+            </div>
           </form>
         </div>
       )}
 
       <div className="bg-white border rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b">
+        <table className="w-full">
+          <thead className="bg-gray-50">
             <tr>
-              <th className="text-left px-4 py-3 font-medium">Produto</th>
-              <th className="text-left px-4 py-3 font-medium">Preço</th>
-              <th className="text-left px-4 py-3 font-medium">Categoria</th>
-              <th className="text-left px-4 py-3 font-medium">Variações</th>
-              <th className="text-right px-4 py-3 font-medium">Ações</th>
+              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Produto</th>
+              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Preço</th>
+              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Categoria</th>
+              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Variações</th>
+              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Flags</th>
+              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Ações</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y">
             {products.map((product) => (
-              <tr key={product.id} className="border-b last:border-b-0">
+              <tr key={product.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     {product.image_url && (
-                      <img
-                        src={product.image_url}
-                        alt={product.name}
-                        className="w-10 h-10 rounded object-cover"
-                      />
+                      <img src={product.image_url} alt="" className="w-10 h-10 rounded object-cover" />
                     )}
-                    <span className="font-medium">{product.name}</span>
+                    <div>
+                      <div className="font-medium text-sm">{product.name}</div>
+                      <div className="text-xs text-gray-500">{product.laboratory}</div>
+                    </div>
                   </div>
                 </td>
-                <td className="px-4 py-3">R$ {Number(product.price).toFixed(2)}</td>
-                <td className="px-4 py-3">{product.category?.name || '-'}</td>
-                <td className="px-4 py-3">{product.variations?.length || 0}</td>
-                <td className="px-4 py-3 text-right">
-                  <button
-                    onClick={() => handleEdit(product)}
-                    className="text-blue-600 hover:underline mr-3"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    onClick={() => handleDelete(product.id)}
-                    className="text-red-600 hover:underline"
-                  >
-                    Excluir
-                  </button>
+                <td className="px-4 py-3 text-sm font-medium">R$ {product.price.toFixed(2)}</td>
+                <td className="px-4 py-3 text-sm">{product.category?.name || '-'}</td>
+                <td className="px-4 py-3 text-sm">{product.variations?.length || 0}</td>
+                <td className="px-4 py-3">
+                  <div className="flex gap-1">
+                    {product.controlled && (
+                      <span className="px-1.5 py-0.5 rounded text-xs bg-red-100 text-red-700">Controlado</span>
+                    )}
+                    {product.requires_prescription && (
+                      <span className="px-1.5 py-0.5 rounded text-xs bg-orange-100 text-orange-700">Receita</span>
+                    )}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <button onClick={() => startEdit(product)} className="text-blue-600 hover:underline text-sm mr-3">Editar</button>
+                  <button onClick={() => handleDelete(product.id)} className="text-red-600 hover:underline text-sm">Excluir</button>
                 </td>
               </tr>
             ))}
+            {products.length === 0 && (
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Nenhum produto cadastrado</td></tr>
+            )}
           </tbody>
         </table>
-
-        {products.length === 0 && (
-          <p className="text-center py-8 text-gray-500">Nenhum produto encontrado</p>
-        )}
       </div>
     </div>
   );
