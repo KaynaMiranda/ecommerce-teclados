@@ -3,6 +3,9 @@ import { useAuthStore } from '../../store/authStore';
 import { adminService } from '../../services/admin';
 import type { DeliveryZone } from '../../types';
 
+const PHARMACY_LAT = -16.6686;
+const PHARMACY_LNG = -49.2940;
+
 export function AdminFreight() {
   const { user } = useAuthStore();
   const [zones, setZones] = useState<DeliveryZone[]>([]);
@@ -12,8 +15,6 @@ export function AdminFreight() {
   const [form, setForm] = useState({
     name: '',
     radius_km: '',
-    center_lat: '',
-    center_lng: '',
     shipping_fee: '',
     estimated_delivery_minutes: '',
     active: true,
@@ -40,8 +41,8 @@ export function AdminFreight() {
     const payload = {
       name: form.name,
       radius_km: Number(form.radius_km),
-      center_lat: Number(form.center_lat),
-      center_lng: Number(form.center_lng),
+      center_lat: PHARMACY_LAT,
+      center_lng: PHARMACY_LNG,
       shipping_fee: Number(form.shipping_fee),
       estimated_delivery_minutes: Number(form.estimated_delivery_minutes),
       active: form.active,
@@ -69,15 +70,13 @@ export function AdminFreight() {
   }
 
   function resetForm() {
-    setForm({ name: '', radius_km: '', center_lat: '-23.5505', center_lng: '-46.6333', shipping_fee: '', estimated_delivery_minutes: '', active: true });
+    setForm({ name: '', radius_km: '', shipping_fee: '', estimated_delivery_minutes: '', active: true });
   }
 
   function startEdit(zone: DeliveryZone) {
     setForm({
       name: zone.name,
       radius_km: String(zone.radius_km),
-      center_lat: String(zone.center_lat),
-      center_lng: String(zone.center_lng),
       shipping_fee: String(zone.shipping_fee),
       estimated_delivery_minutes: String(zone.estimated_delivery_minutes),
       active: zone.active,
@@ -86,12 +85,24 @@ export function AdminFreight() {
     setShowForm(true);
   }
 
+  function getDefaultName() {
+    if (zones.length === 0) return 'Zona Centro';
+    const maxRadius = Math.max(...zones.map(z => Number(z.radius_km)));
+    if (maxRadius <= 3) return 'Zona Próxima';
+    if (maxRadius <= 8) return 'Zona Intermediária';
+    if (maxRadius <= 15) return 'Zona Distante';
+    return `Zona ${zones.length + 1}`;
+  }
+
   if (loading) return <div className="animate-pulse text-gray-400">Carregando...</div>;
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Zonas de Entrega</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Zonas de Entrega</h1>
+          <p className="text-sm text-gray-500 mt-1">Configure as faixas de distância e valor do frete próprio</p>
+        </div>
         <button
           onClick={() => { setShowForm(true); setEditing(null); resetForm(); }}
           className="bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800"
@@ -105,39 +116,32 @@ export function AdminFreight() {
           <h2 className="text-lg font-semibold mb-4">{editing ? 'Editar Zona' : 'Nova Zona'}</h2>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Nome *</label>
+              <label className="block text-sm font-medium mb-1">Nome da Zona *</label>
               <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})}
-                className="w-full border rounded-lg px-3 py-2" required placeholder="Ex: Zona Centro" />
+                className="w-full border rounded-lg px-3 py-2" required
+                placeholder={editing ? '' : getDefaultName()} />
+              <p className="text-xs text-gray-400 mt-1">Ex: Zona Centro, Zona Norte</p>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Raio (km) *</label>
-              <input type="number" step="0.1" value={form.radius_km} onChange={e => setForm({...form, radius_km: e.target.value})}
-                className="w-full border rounded-lg px-3 py-2" required />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Latitude *</label>
-              <input type="number" step="0.0001" value={form.center_lat} onChange={e => setForm({...form, center_lat: e.target.value})}
-                className="w-full border rounded-lg px-3 py-2" required />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Longitude *</label>
-              <input type="number" step="0.0001" value={form.center_lng} onChange={e => setForm({...form, center_lng: e.target.value})}
-                className="w-full border rounded-lg px-3 py-2" required />
+              <label className="block text-sm font-medium mb-1">Raio Máximo (km) *</label>
+              <input type="number" step="0.5" min="0.5" value={form.radius_km} onChange={e => setForm({...form, radius_km: e.target.value})}
+                className="w-full border rounded-lg px-3 py-2" required placeholder="Ex: 3" />
+              <p className="text-xs text-gray-400 mt-1">Distância máxima da farmácia</p>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Valor do Frete (R$) *</label>
-              <input type="number" step="0.01" value={form.shipping_fee} onChange={e => setForm({...form, shipping_fee: e.target.value})}
-                className="w-full border rounded-lg px-3 py-2" required />
+              <input type="number" step="0.01" min="0" value={form.shipping_fee} onChange={e => setForm({...form, shipping_fee: e.target.value})}
+                className="w-full border rounded-lg px-3 py-2" required placeholder="Ex: 5.99" />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Tempo Estimado (min) *</label>
-              <input type="number" value={form.estimated_delivery_minutes} onChange={e => setForm({...form, estimated_delivery_minutes: e.target.value})}
-                className="w-full border rounded-lg px-3 py-2" required />
+              <input type="number" min="10" value={form.estimated_delivery_minutes} onChange={e => setForm({...form, estimated_delivery_minutes: e.target.value})}
+                className="w-full border rounded-lg px-3 py-2" required placeholder="Ex: 30" />
             </div>
             <div className="flex items-center gap-2">
               <input type="checkbox" id="active" checked={form.active} onChange={e => setForm({...form, active: e.target.checked})}
                 className="rounded" />
-              <label htmlFor="active" className="text-sm font-medium">Ativa</label>
+              <label htmlFor="active" className="text-sm font-medium">Zona ativa</label>
             </div>
 
             <div className="col-span-2 flex gap-3 pt-4">
@@ -153,31 +157,46 @@ export function AdminFreight() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {zones.map((zone) => (
-          <div key={zone.id} className="bg-white border rounded-lg p-4">
-            <div className="flex justify-between items-start mb-2">
-              <h3 className="font-semibold">{zone.name}</h3>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${zone.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
-                {zone.active ? 'Ativa' : 'Inativa'}
-              </span>
-            </div>
-            <div className="text-sm text-gray-600 space-y-1 mb-4">
-              <p>Raio: {zone.radius_km} km</p>
-              <p>Frete: R$ {zone.shipping_fee.toFixed(2)}</p>
-              <p>Entrega: ~{zone.estimated_delivery_minutes} min</p>
-              <p className="text-xs text-gray-400">Centro: {zone.center_lat}, {zone.center_lng}</p>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => startEdit(zone)} className="text-blue-600 hover:underline text-sm">Editar</button>
-              <button onClick={() => handleDelete(zone.id)} className="text-red-600 hover:underline text-sm">Excluir</button>
-            </div>
-          </div>
-        ))}
-        {zones.length === 0 && (
-          <div className="col-span-3 text-center text-gray-400 py-8">Nenhuma zona cadastrada</div>
-        )}
-      </div>
+      {zones.length === 0 ? (
+        <div className="text-center py-12 bg-white border rounded-lg">
+          <p className="text-gray-400 mb-4">Nenhuma zona de entrega cadastrada</p>
+          <p className="text-sm text-gray-500">Crie zonas definindo distância máxima e valor do frete</p>
+        </div>
+      ) : (
+        <div className="bg-white border rounded-lg overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Zona</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Raio</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Frete</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Tempo</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Status</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {zones.sort((a, b) => a.radius_km - b.radius_km).map(zone => (
+                <tr key={zone.id} className={!zone.active ? 'bg-gray-50 text-gray-400' : ''}>
+                  <td className="px-4 py-3 font-medium">{zone.name}</td>
+                  <td className="px-4 py-3">até {zone.radius_km} km</td>
+                  <td className="px-4 py-3 font-medium">R$ {zone.shipping_fee.toFixed(2)}</td>
+                  <td className="px-4 py-3">~{zone.estimated_delivery_minutes} min</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${zone.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {zone.active ? 'Ativa' : 'Inativa'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 space-x-2">
+                    <button onClick={() => startEdit(zone)} className="text-blue-600 hover:underline text-sm">Editar</button>
+                    <button onClick={() => handleDelete(zone.id)} className="text-red-600 hover:underline text-sm">Excluir</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

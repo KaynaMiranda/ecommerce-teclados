@@ -118,7 +118,7 @@ INSERT INTO product_variations (product_id, name, sku, price_override, stock_qua
 -- =============================================
 
 INSERT INTO delivery_zones (name, radius_km, center_lat, center_lng, shipping_fee, estimated_delivery_minutes, active) VALUES
-('Zona Centro', 3.0, -23.5505, -46.6333, 5.99, 30, true),
-('Zona Próxima', 8.0, -23.5505, -46.6333, 9.99, 45, true),
-('Zona Intermediária', 15.0, -23.5505, -46.6333, 14.99, 60, true),
-('Zona Distante', 25.0, -23.5505, -46.6333, 19.99, 90, true);
+('Zona Centro', 3.0, -16.6686, -49.2940, 5.99, 30, true),
+('Zona Próxima', 8.0, -16.6686, -49.2940, 9.99, 45, true),
+('Zona Intermediária', 15.0, -16.6686, -49.2940, 14.99, 60, true),
+('Zona Distante', 25.0, -16.6686, -49.2940, 19.99, 90, true);
