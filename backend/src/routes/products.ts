@@ -112,6 +112,59 @@ export async function productsRoutes(app: FastifyInstance) {
   // SHIPPING CALCULATION (Haversine + Geocoding)
   // =============================================
 
+  async function geocodeZip(zipCode: string): Promise<{ lat: number; lng: number } | null> {
+    // 1. Check local zip_coordinates table
+    const { data: local } = await supabase
+      .from('zip_coordinates')
+      .select('latitude, longitude')
+      .eq('zip_code', zipCode)
+      .single();
+
+    if (local) {
+      return { lat: Number(local.latitude), lng: Number(local.longitude) };
+    }
+
+    // 2. Get city/state from ViaCEP, then geocode with Nominatim
+    try {
+      const viaCepResp = await fetch(`https://viacep.com.br/ws/${zipCode}/json/`);
+      const viaCepData = await viaCepResp.json() as Record<string, string>;
+
+      if (viaCepData.erro || !viaCepData.localidade) return null;
+
+      const city = viaCepData.localidade;
+      const state = viaCepData.uf;
+      const query = `${city}, ${state}, Brazil`;
+
+      const nominatimResp = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
+        { headers: { 'User-Agent': 'FarmaPlus/1.0' } }
+      );
+      const nominatimData = await nominatimResp.json() as Array<{ lat: string; lon: string }>;
+
+      if (nominatimData.length > 0) {
+        const coords = {
+          lat: parseFloat(nominatimData[0].lat),
+          lng: parseFloat(nominatimData[0].lon),
+        };
+
+        // Cache in zip_coordinates for next time
+        await supabase.from('zip_coordinates').insert({
+          zip_code: zipCode,
+          latitude: coords.lat,
+          longitude: coords.lng,
+          city,
+          state,
+        });
+
+        return coords;
+      }
+    } catch {
+      // Ignore errors
+    }
+
+    return null;
+  }
+
   app.post('/calculate-shipping', async (request, reply) => {
     const { zip_code, latitude, longitude } = request.body as {
       zip_code?: string;
@@ -122,46 +175,18 @@ export async function productsRoutes(app: FastifyInstance) {
     let lat = latitude;
     let lng = longitude;
 
-    // If only zip_code provided, try to geocode
+    // If only zip_code provided, geocode it
     if ((!lat || !lng) && zip_code) {
       const cleanZip = zip_code.replace(/\D/g, '');
-
-      // Check local table
-      const { data: local } = await supabase
-        .from('zip_coordinates')
-        .select('latitude, longitude')
-        .eq('zip_code', cleanZip)
-        .single();
-
-      if (local) {
-        lat = Number(local.latitude);
-        lng = Number(local.longitude);
-      } else {
-        // Use ViaCEP to get city name, then use approximate coordinates
-        try {
-          const response = await fetch(`https://viacep.com.br/ws/${cleanZip}/json/`);
-          const data = await response.json() as Record<string, string>;
-
-          if (!data.erro && data.localidade) {
-            // For São Paulo city, use center coordinates
-            if (data.localidade === 'São Paulo' && data.uf === 'SP') {
-              lat = -23.5505;
-              lng = -46.6333;
-            } else {
-              // For other cities, return error asking for lat/lng
-              return reply.status(400).send({
-                error: 'Não foi possível calcular a distância para este CEP. Tente informar a localização manualmente.',
-              });
-            }
-          }
-        } catch {
-          // Ignore ViaCEP errors
-        }
+      const coords = await geocodeZip(cleanZip);
+      if (coords) {
+        lat = coords.lat;
+        lng = coords.lng;
       }
     }
 
     if (!lat || !lng) {
-      return reply.status(400).send({ error: 'Informe o CEP ou as coordenadas (latitude/longitude)' });
+      return reply.status(400).send({ error: 'Não foi possível localizar este CEP. Verifique o CEP informado.' });
     }
 
     // Get all active zones

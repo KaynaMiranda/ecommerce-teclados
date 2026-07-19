@@ -25,6 +25,7 @@ export function Checkout() {
   const [prescriptionRequired, setPrescriptionRequired] = useState<Product[]>([]);
   const [prescriptionUrl, setPrescriptionUrl] = useState('');
   const [minOrderValue, setMinOrderValue] = useState(25);
+  const [baseShippingFee, setBaseShippingFee] = useState<number | null>(null);
   const [address, setAddress] = useState({
     street: '',
     number: '',
@@ -120,6 +121,7 @@ export function Checkout() {
     if (zipClean.length !== 8) {
       setShippingError('CEP deve ter 8 dígitos');
       setShippingFee(null);
+      setBaseShippingFee(null);
       return;
     }
     setCalculatingShipping(true);
@@ -127,19 +129,38 @@ export function Checkout() {
     try {
       const { data } = await api.post('/api/products/calculate-shipping', { zip_code: address.zip_code });
       if (data.available) {
-        setShippingFee(data.shipping_fee);
+        setBaseShippingFee(data.shipping_fee);
+        applyDeliveryFee(data.shipping_fee);
         setShippingError('');
       } else {
         setShippingFee(null);
-        setShippingError('Fora da área de entrega');
+        setBaseShippingFee(null);
+        setShippingError(data.error || 'Fora da área de entrega');
       }
     } catch {
       setShippingFee(null);
+      setBaseShippingFee(null);
       setShippingError('Erro ao calcular frete');
     } finally {
       setCalculatingShipping(false);
     }
   }
+
+  function applyDeliveryFee(baseFee: number) {
+    const fees: Record<string, number> = {
+      own: baseFee,
+      ifood: Math.round(baseFee * 1.3 * 100) / 100,
+      rappi: Math.round(baseFee * 1.25 * 100) / 100,
+      ninety_nine: Math.round(baseFee * 1.2 * 100) / 100,
+    };
+    setShippingFee(fees[deliveryMethod] ?? baseFee);
+  }
+
+  useEffect(() => {
+    if (baseShippingFee !== null) {
+      applyDeliveryFee(baseShippingFee);
+    }
+  }, [deliveryMethod]);
 
   function validate(): string | null {
     const phoneClean = address.phone.replace(/\D/g, '');
@@ -295,6 +316,27 @@ export function Checkout() {
               </button>
             ))}
           </div>
+
+          {/* Fee comparison */}
+          {baseShippingFee !== null && (
+            <div className="bg-gray-50 rounded-lg p-3 mt-2">
+              <p className="text-xs text-gray-500 mb-2">Comparativo de frete:</p>
+              <div className="grid grid-cols-2 gap-1 text-xs">
+                <span className={deliveryMethod === 'own' ? 'font-bold text-green-700' : 'text-gray-600'}>
+                  Farmácia: R$ {baseShippingFee.toFixed(2)}
+                </span>
+                <span className={deliveryMethod === 'ifood' ? 'font-bold text-green-700' : 'text-gray-600'}>
+                  iFood: R$ {(baseShippingFee * 1.3).toFixed(2)}
+                </span>
+                <span className={deliveryMethod === 'rappi' ? 'font-bold text-green-700' : 'text-gray-600'}>
+                  Rappi: R$ {(baseShippingFee * 1.25).toFixed(2)}
+                </span>
+                <span className={deliveryMethod === 'ninety_nine' ? 'font-bold text-green-700' : 'text-gray-600'}>
+                  99: R$ {(baseShippingFee * 1.2).toFixed(2)}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Delivery Schedule */}
           <h2 className="text-lg font-semibold mt-6">Horário de Entrega</h2>
