@@ -1,14 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { adminService } from '../../services/admin';
-import type { Driver, DriverType } from '../../types';
-
-const DRIVER_TYPES: { value: DriverType; label: string }[] = [
-  { value: 'own', label: 'Próprio' },
-  { value: 'ifood', label: 'iFood' },
-  { value: 'rappi', label: 'Rappi' },
-  { value: 'other', label: 'Outro' },
-];
+import type { Driver } from '../../types';
 
 export function AdminDrivers() {
   const { user } = useAuthStore();
@@ -19,7 +12,6 @@ export function AdminDrivers() {
   const [form, setForm] = useState({
     name: '',
     phone: '',
-    driver_type: 'own' as DriverType,
     vehicle_type: '',
     plate: '',
   });
@@ -40,7 +32,7 @@ export function AdminDrivers() {
 
   function openNew() {
     setEditDriver(null);
-    setForm({ name: '', phone: '', driver_type: 'own', vehicle_type: '', plate: '' });
+    setForm({ name: '', phone: '', vehicle_type: '', plate: '' });
     setShowForm(true);
   }
 
@@ -49,7 +41,6 @@ export function AdminDrivers() {
     setForm({
       name: d.name,
       phone: d.phone,
-      driver_type: d.driver_type,
       vehicle_type: d.vehicle_type || '',
       plate: d.plate || '',
     });
@@ -63,7 +54,7 @@ export function AdminDrivers() {
     const payload = {
       name: form.name,
       phone: form.phone.replace(/\D/g, ''),
-      driver_type: form.driver_type,
+      driver_type: 'own' as const,
       vehicle_type: form.vehicle_type || undefined,
       plate: form.plate?.toUpperCase() || undefined,
       active: true,
@@ -98,16 +89,15 @@ export function AdminDrivers() {
     return numbers;
   }
 
-  function driverTypeLabel(t: DriverType) {
-    return DRIVER_TYPES.find(dt => dt.value === t)?.label || t;
-  }
-
   if (loading) return <div className="animate-pulse text-gray-400">Carregando...</div>;
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Entregadores</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Entregadores Próprios</h1>
+          <p className="text-sm text-gray-500 mt-1">Entregadores da farmácia. Plataformas (iFood, Rappi, 99) são selecionadas pelo cliente no pedido.</p>
+        </div>
         <button onClick={openNew}
           className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
           + Novo Entregador
@@ -129,18 +119,9 @@ export function AdminDrivers() {
                 className="w-full border rounded-lg px-3 py-2" placeholder="(11) 99999-9999" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tipo *</label>
-              <select value={form.driver_type} onChange={e => setForm({...form, driver_type: e.target.value as DriverType})}
-                className="w-full border rounded-lg px-3 py-2">
-                {DRIVER_TYPES.map(dt => (
-                  <option key={dt.value} value={dt.value}>{dt.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Veículo</label>
               <input type="text" value={form.vehicle_type} onChange={e => setForm({...form, vehicle_type: e.target.value})}
-                className="w-full border rounded-lg px-3 py-2" placeholder="Ex: Moto, Bicicleta" />
+                className="w-full border rounded-lg px-3 py-2" placeholder="Ex: Moto, Bicicleta, carro" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Placa</label>
@@ -162,7 +143,7 @@ export function AdminDrivers() {
       )}
 
       {drivers.length === 0 ? (
-        <p className="text-gray-500">Nenhum entregador cadastrado.</p>
+        <p className="text-gray-500">Nenhum entregador próprio cadastrado.</p>
       ) : (
         <div className="bg-white border rounded-lg overflow-hidden">
           <table className="w-full">
@@ -170,7 +151,6 @@ export function AdminDrivers() {
               <tr>
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Nome</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Telefone</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Tipo</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Veículo</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Placa</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">Status</th>
@@ -182,7 +162,6 @@ export function AdminDrivers() {
                 <tr key={d.id} className={!d.active ? 'bg-gray-50 text-gray-400' : ''}>
                   <td className="px-4 py-3 font-medium">{d.name}</td>
                   <td className="px-4 py-3">{formatPhone(d.phone)}</td>
-                  <td className="px-4 py-3">{driverTypeLabel(d.driver_type)}</td>
                   <td className="px-4 py-3">{d.vehicle_type || '—'}</td>
                   <td className="px-4 py-3 font-mono text-sm">{d.plate || '—'}</td>
                   <td className="px-4 py-3">

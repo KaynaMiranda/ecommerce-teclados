@@ -2,7 +2,14 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import api from '../services/api';
-import type { Order } from '../types';
+import type { Order, DeliveryMethod } from '../types';
+
+const deliveryMethodLabels: Record<DeliveryMethod, string> = {
+  own: 'Entregador da Farmácia',
+  ifood: 'iFood',
+  rappi: 'Rappi',
+  ninety_nine: '99',
+};
 
 const statusLabels: Record<string, string> = {
   pending: 'Pendente',
@@ -108,7 +115,10 @@ export function MyOrders() {
                       <span className="font-mono text-sm text-gray-500">Pedido #{order.order_number}</span>
                       <p className="text-sm text-gray-500">{formatDate(order.created_at)}</p>
                       {order.driver && (
-                        <p className="text-xs text-blue-600 mt-1">{order.driver.name} — {order.driver.driver_type === 'own' ? 'Entregador Próprio' : order.driver.driver_type}</p>
+                        <p className="text-xs text-blue-600 mt-1">{order.driver.name}</p>
+                      )}
+                      {order.delivery_method && (
+                        <p className="text-xs text-gray-500 mt-1">{deliveryMethodLabels[order.delivery_method]}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-2">

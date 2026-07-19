@@ -38,6 +38,7 @@ export function Checkout() {
   const [paymentMethod, setPaymentMethod] = useState<'pix' | 'credit_card'>('pix');
   const [selectedSchedule, setSelectedSchedule] = useState('');
   const [deliveryNotes, setDeliveryNotes] = useState('');
+  const [deliveryMethod, setDeliveryMethod] = useState<'own' | 'ifood' | 'rappi' | 'ninety_nine'>('own');
 
   const subtotal = getTotal();
   const pixDiscount = payment_method_calc();
@@ -185,6 +186,7 @@ export function Checkout() {
         payment_method: paymentMethod,
         shipping_fee: shippingFee,
         delivery_schedule_id: selectedSchedule,
+        delivery_method: deliveryMethod,
         delivery_notes: deliveryNotes,
         prescription_url: prescriptionUrl || undefined,
       });
@@ -273,6 +275,25 @@ export function Checkout() {
               <input type="text" value={address.state} onChange={e => setAddress({...address, state: e.target.value.toUpperCase()})}
                 className="w-full border rounded-lg px-3 py-2" maxLength={2} required />
             </div>
+          </div>
+
+          {/* Delivery Method */}
+          <h2 className="text-lg font-semibold mt-6">Como quer receber?</h2>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { value: 'own', label: 'Entregador da Farmácia', desc: 'Nosso entregador próprio' },
+              { value: 'ifood', label: 'iFood', desc: 'Entrega via iFood' },
+              { value: 'rappi', label: 'Rappi', desc: 'Entrega via Rappi' },
+              { value: 'ninety_nine', label: '99', desc: 'Entrega via 99 Entregas' },
+            ].map(opt => (
+              <button key={opt.value} type="button" onClick={() => setDeliveryMethod(opt.value as typeof deliveryMethod)}
+                className={`p-3 border rounded-lg text-left text-sm transition-colors ${
+                  deliveryMethod === opt.value ? 'border-green-600 bg-green-50 text-green-700' : 'hover:bg-gray-50'
+                }`}>
+                <div className="font-medium">{opt.label}</div>
+                <div className="text-xs text-gray-500">{opt.desc}</div>
+              </button>
+            ))}
           </div>
 
           {/* Delivery Schedule */}

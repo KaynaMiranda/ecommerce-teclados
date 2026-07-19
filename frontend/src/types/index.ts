@@ -4,7 +4,8 @@ export type PaymentMethod = 'pix' | 'credit_card' | 'boleto';
 export type OrderType = 'b2c' | 'b2b';
 export type ClientType = 'drogaria' | 'clinica' | 'distribuidora';
 export type StockMovementType = 'in' | 'out' | 'adjustment';
-export type DriverType = 'own' | 'ifood' | 'rappi' | 'other';
+export type DriverType = 'own';
+export type DeliveryMethod = 'own' | 'ifood' | 'rappi' | 'ninety_nine';
 
 export interface Profile {
   id: string;
@@ -150,6 +151,7 @@ export interface Order {
   shipping_address_id?: string;
   shipping_address_snapshot?: Record<string, unknown>;
   delivery_schedule_id?: string;
+  delivery_method?: DeliveryMethod;
   prescription_url?: string;
   delivery_notes?: string;
   assigned_driver_id?: string;

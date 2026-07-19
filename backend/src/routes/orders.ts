@@ -5,13 +5,14 @@ export async function ordersRoutes(app: FastifyInstance) {
 
   // Create order (B2C)
   app.post('/', async (request, reply) => {
-    const { user_id, items, shipping_address, payment_method, shipping_fee, delivery_schedule_id, delivery_notes, prescription_url } = request.body as {
+    const { user_id, items, shipping_address, payment_method, shipping_fee, delivery_schedule_id, delivery_method, delivery_notes, prescription_url } = request.body as {
       user_id: string;
       items: Array<{ product_id: string; variation_id?: string; quantity: number; unit_price: number }>;
       shipping_address: Record<string, unknown>;
       payment_method: string;
       shipping_fee: number;
       delivery_schedule_id?: string;
+      delivery_method?: string;
       delivery_notes?: string;
       prescription_url?: string;
     };
@@ -104,6 +105,7 @@ export async function ordersRoutes(app: FastifyInstance) {
         payment_method,
         shipping_address_snapshot: shipping_address,
         delivery_schedule_id,
+        delivery_method: delivery_method || 'own',
         delivery_notes,
         prescription_url,
       })

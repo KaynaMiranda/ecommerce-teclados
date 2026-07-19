@@ -1,7 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/authStore';
 import { adminService } from '../../services/admin';
-import type { Order, OrderStatus, Driver } from '../../types';
+import type { Order, OrderStatus, Driver, DeliveryMethod } from '../../types';
+
+const deliveryMethodLabels: Record<DeliveryMethod, string> = {
+  own: 'Próprio',
+  ifood: 'iFood',
+  rappi: 'Rappi',
+  ninety_nine: '99',
+};
 
 const statusLabels: Record<OrderStatus, string> = {
   pending: 'Pendente',
@@ -149,7 +156,7 @@ export function AdminOrders() {
                   <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Tipo</th>
                   <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Total</th>
                   <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Status</th>
-                  <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Entregador</th>
+                  <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Entrega</th>
                   <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Data</th>
                 </tr>
               </thead>
@@ -179,7 +186,14 @@ export function AdminOrders() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500">
-                      {order.driver?.name || '—'}
+                      {order.delivery_method ? (
+                        <div>
+                          <span className="font-medium">{deliveryMethodLabels[order.delivery_method]}</span>
+                          {order.delivery_method === 'own' && order.driver && (
+                            <span className="text-gray-400 block text-xs">{order.driver.name}</span>
+                          )}
+                        </div>
+                      ) : '—'}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500">{formatDate(order.created_at)}</td>
                   </tr>
@@ -267,13 +281,17 @@ export function AdminOrders() {
                 </div>
               )}
 
-              {/* Driver assignment */}
-              {['preparing', 'ready_for_pickup', 'out_for_delivery'].includes(selectedOrder.status) && (
-                <div className="border-t pt-3">
-                  <span className="text-gray-500">Entregador:</span>
-                  {selectedOrder.driver ? (
+              {/* Delivery Method + Driver Assignment */}
+              <div className="border-t pt-3">
+                <span className="text-gray-500">Método de entrega:</span>
+                {selectedOrder.delivery_method && (
+                  <p className="font-medium">{deliveryMethodLabels[selectedOrder.delivery_method]}</p>
+                )}
+
+                {selectedOrder.delivery_method === 'own' ? (
+                  selectedOrder.driver ? (
                     <div className="flex items-center justify-between mt-1">
-                      <p className="font-medium">{selectedOrder.driver.name} ({selectedOrder.driver.driver_type === 'own' ? 'Próprio' : selectedOrder.driver.driver_type})</p>
+                      <p className="font-medium">{selectedOrder.driver.name}</p>
                       <button onClick={() => handleRemoveAssignment(selectedOrder.id)}
                         className="text-red-500 hover:underline text-xs">Remover</button>
                     </div>
@@ -281,9 +299,9 @@ export function AdminOrders() {
                     <div className="flex gap-2 mt-1">
                       <select value={selectedDriverId} onChange={e => setSelectedDriverId(e.target.value)}
                         className="flex-1 border rounded px-2 py-1 text-sm">
-                        <option value="">Selecionar...</option>
+                        <option value="">Selecionar entregador...</option>
                         {drivers.map(d => (
-                          <option key={d.id} value={d.id}>{d.name} ({d.driver_type === 'own' ? 'Próprio' : d.driver_type})</option>
+                          <option key={d.id} value={d.id}>{d.name} ({d.vehicle_type || 'Sem veículo'})</option>
                         ))}
                       </select>
                       <button onClick={() => handleAssignDriver(selectedOrder.id)}
@@ -292,9 +310,11 @@ export function AdminOrders() {
                         Designar
                       </button>
                     </div>
-                  )}
-                </div>
-              )}
+                  )
+                ) : (
+                  <p className="text-xs text-gray-400 mt-1">Gerenciado pela plataforma {selectedOrder.delivery_method ? deliveryMethodLabels[selectedOrder.delivery_method] : ''}</p>
+                )}
+              </div>
 
               <div className="border-t pt-3">
                 <span className="text-gray-500">Itens:</span>
